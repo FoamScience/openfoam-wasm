@@ -1,0 +1,43 @@
+#------------------------------------------------------------------------------
+# Emscripten / WASM cross-compilation
+#------------------------------------------------------------------------------
+# Use host cpp for preprocessing Make/files and Make/options
+# (em++ -E mangles the Make/files format)
+CPP        = cpp -traditional-cpp $(GFLAGS)
+LD         = llvm-ar
+AR         = emar
+ARFLAGS    = cr
+RANLIB     = emranlib
+
+# WASM define — must be in GFLAGS so cpp sees it when processing Make/files
+GFLAGS     += -DFOAM_WASM
+
+# Emscripten zlib port (headers + library) — in EXTRA flags, not GFLAGS
+# (GFLAGS is also passed to host cpp which doesn't understand -s flags)
+FOAM_EXTRA_CXXFLAGS += -sUSE_ZLIB=1
+FOAM_EXTRA_CFLAGS   += -sUSE_ZLIB=1
+
+# Static-only build — WASM has no dynamic linking
+EXT_SO     = .a
+EXT_EXE    =
+
+# Libraries linked as static archives (all transitive deps must be explicit)
+# --whole-archive forces all static constructors (Runtime Selection Tables)
+PROJECT_LIBS = \
+    -Wl,--whole-archive \
+    -l$(WM_PROJECT) -lOSspecific \
+    -L$(FOAM_LIBBIN)/dummy -lPstream \
+    -Wl,--no-whole-archive
+
+# wmkdepend must be a native binary (host tool, not WASM)
+WMAKE_BIN   = $(WM_PROJECT_DIR)/platforms/tools/linux64Gcc
+
+include $(GENERAL_RULES)/standard
+
+# No openmp in WASM
+include $(GENERAL_RULES)/no-openmp
+
+include $(DEFAULT_RULES)/c
+include $(DEFAULT_RULES)/c++
+
+#------------------------------------------------------------------------------

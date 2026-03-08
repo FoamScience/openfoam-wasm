@@ -1,0 +1,44 @@
+#!/bin/sh
+#------------------------------------------------------------------------------
+# Wrapper for emar that accepts (and ignores) linker-style flags.
+# Used as LINKLIBSO for WASM builds where "shared libraries" are static
+# archives. Wmake's libso rule passes: LINKLIBSO [flags] objects -L... -l... -o output
+#
+# We extract the -o target and the .o object files, ignoring the rest.
+#------------------------------------------------------------------------------
+
+OUTPUT=""
+OBJECTS=""
+
+# Parse args: collect .o files and the -o target, ignore everything else
+skip_next=false
+for arg in "$@"; do
+    if $skip_next; then
+        OUTPUT="$arg"
+        skip_next=false
+        continue
+    fi
+    case "$arg" in
+        -o)
+            skip_next=true
+            ;;
+        *.o)
+            OBJECTS="$OBJECTS $arg"
+            ;;
+        # Ignore linker flags: -L, -l, -shared, -Wl, -fuse-ld, etc.
+        -L*|-l*|-shared|-Wl,*|-f*|-s*|-g|-O*|-std=*|-W*|-D*|-pthread)
+            ;;
+        *)
+            # Ignore anything else we don't recognize
+            ;;
+    esac
+done
+
+if [ -z "$OUTPUT" ]; then
+    echo "emar-wrapper: error: no -o target specified" >&2
+    exit 1
+fi
+
+# Remove old archive and create new one
+rm -f "$OUTPUT"
+exec emar cr "$OUTPUT" $OBJECTS

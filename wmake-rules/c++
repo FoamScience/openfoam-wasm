@@ -1,0 +1,61 @@
+#------------------------------------------------------------------------------
+# Emscripten C++ compiler
+#------------------------------------------------------------------------------
+SUFFIXES   += .C .cc .cpp .cxx
+
+CC         := em++ -std=c++17
+c++ARCH    :=
+c++DBUG    :=
+c++OPT     := -O2 -fexceptions
+ptFLAGS    := -DNoRepository -ftemplate-depth-100
+
+
+c++WARN     = \
+    -Wall -Wextra \
+    -Wno-old-style-cast -Wno-unused-parameter -Wno-invalid-offsetof \
+    -Wno-attributes -Wno-unknown-pragmas -Wno-deprecated-declarations \
+    -Wno-undefined-var-template
+
+c++LESSWARN = \
+    -Wno-old-style-cast -Wno-unused-local-typedefs -Wno-array-bounds \
+    -Wno-deprecated-declarations \
+    -fpermissive
+
+ifneq (,$(strip $(WM_COMPILE_OPTION)))
+    sinclude $(DEFAULT_RULES)/c++$(WM_COMPILE_OPTION)
+endif
+
+c++FLAGS    = \
+    $(c++ARCH) $(GFLAGS) $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) \
+    $(FOAM_EXTRA_CXXFLAGS) $(LIB_HEADER_DIRS)
+
+Ctoo        = $(WM_SCHEDULER) $(CC) $(c++FLAGS) -c $< -o $@
+cctoo       = $(Ctoo)
+cpptoo      = $(Ctoo)
+cxxtoo      = $(Ctoo)
+
+# Linking
+LINK_LIBS   = $(c++DBUG)
+
+# Shared libraries → static archives for WASM
+# Use wrapper that accepts and ignores linker flags (-L, -l, -o, etc.)
+LINKLIBSO   = $(WM_DIR)/scripts/emar-wrapper
+
+# Executable linking with Emscripten
+LINKEXE     = $(CC) $(c++FLAGS) \
+    -sWASM=1 \
+    -sALLOW_MEMORY_GROWTH=1 \
+    -sMAXIMUM_MEMORY=2GB \
+    -sSTACK_SIZE=2MB \
+    -sFORCE_FILESYSTEM=1 \
+    -sUSE_ZLIB=1 \
+    -sMODULARIZE=1 \
+    -sEXPORT_NAME=createOpenFOAM \
+    -sEXPORT_ES6=0 \
+    -sINVOKE_RUN=0 \
+    -sEXIT_RUNTIME=0 \
+    -sEXPORTED_RUNTIME_METHODS=callMain,FS,MEMFS,cwrap,ccall,ENV \
+    -sASSERTIONS=1 \
+    -sDISABLE_EXCEPTION_CATCHING=0
+
+#------------------------------------------------------------------------------
