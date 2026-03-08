@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OpenFOAM WASM — scalarTransportFoam (pitzDaily)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container-fluid py-3">
+        <h1 class="h3 text-info mb-3">OpenFOAM WASM — scalarTransportFoam (pitzDaily)</h1>
+
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <span id="status" class="badge bg-secondary">Initializing...</span>
+            <button id="runBtn" class="btn btn-info btn-sm" disabled onclick="runCase()">Run pitzDaily Tutorial</button>
+            <button id="stopBtn" class="btn btn-danger btn-sm" disabled onclick="stopCase()">Stop</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="clearOutput()">Clear</button>
+        </div>
+
+        <!-- Case Editor -->
+        <div class="card mb-3">
+            <div class="card-header p-0">
+                <ul id="caseEditorTabs" class="nav nav-tabs card-header-tabs" role="tablist"></ul>
+            </div>
+            <div id="caseEditorBody" class="card-body p-2" style="max-height:500px; overflow-y:auto;"></div>
+        </div>
+
+        <!-- Visualization -->
+        <div id="vizContainer" class="card mb-3" style="display:none;">
+            <div class="card-header d-flex align-items-center gap-3 py-2">
+                <label class="d-flex align-items-center gap-1 mb-0 small">
+                    Time step:
+                    <select id="timeSelect" class="form-select form-select-sm" style="width:auto;" onchange="visualize()"></select>
+                </label>
+                <label class="d-flex align-items-center gap-1 mb-0 small">
+                    Field:
+                    <select id="fieldSelect" class="form-select form-select-sm" style="width:auto;" onchange="visualize()"></select>
+                </label>
+            </div>
+            <div class="card-body p-0">
+                <canvas id="vizCanvas" width="900" height="400"></canvas>
+            </div>
+        </div>
+
+        <!-- Object Registry -->
+        <div id="registryExplorer" class="card mb-3" style="display:none;">
+            <div class="card-header d-flex align-items-center gap-3 py-2" role="button" data-bs-toggle="collapse" data-bs-target="#registryCollapse">
+                <span class="fw-semibold small">Object Registry</span>
+                <label class="d-flex align-items-center gap-1 mb-0 small" onclick="event.stopPropagation();">
+                    Time:
+                    <select id="registryTimeSelect" class="form-select form-select-sm" style="width:auto;" onchange="showRegistryTime()"></select>
+                </label>
+                <span id="registrySummary" class="text-body-secondary small"></span>
+            </div>
+            <div id="registryCollapse" class="collapse show">
+                <div id="registryBody" class="card-body p-2" style="max-height:400px; overflow-y:auto;"></div>
+            </div>
+        </div>
+
+        <!-- Results Explorer -->
+        <div id="resultsExplorer" class="card mb-3" style="display:none;">
+            <div class="card-header py-2" role="button" data-bs-toggle="collapse" data-bs-target="#fsCollapse">
+                <span class="fw-semibold small">Results Explorer — case filesystem</span>
+            </div>
+            <div id="fsCollapse" class="collapse show">
+                <div class="card-body p-0 d-flex" style="max-height:500px;">
+                    <div id="fsTree" class="border-end p-2 small" style="flex:0 0 300px; overflow-y:auto;"></div>
+                    <pre id="filePreview" class="flex-grow-1 m-0 p-2 small" style="overflow:auto; white-space:pre-wrap; word-break:break-all;"></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Console Output -->
+        <div class="card">
+            <div class="card-header py-1">
+                <span class="fw-semibold small">Console</span>
+            </div>
+            <div id="output" class="card-body p-2"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
