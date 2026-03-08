@@ -1,0 +1,323 @@
+diff --git a/applications/solvers/basic/scalarTransportFoam/Make/options b/applications/solvers/basic/scalarTransportFoam/Make/options
+index acbe7a6475..480a5a33f8 100644
+--- a/applications/solvers/basic/scalarTransportFoam/Make/options
++++ b/applications/solvers/basic/scalarTransportFoam/Make/options
+@@ -1,10 +1,11 @@
+ EXE_INC = \
+     -I$(LIB_SRC)/finiteVolume/lnInclude \
+-    -I$(LIB_SRC)/meshTools/lnInclude \
+-    -I$(LIB_SRC)/sampling/lnInclude
++    -I$(LIB_SRC)/meshTools/lnInclude
+ 
+ EXE_LIBS = \
++    -Wl,--whole-archive \
+     -lfiniteVolume \
+-    -lfvOptions \
+     -lmeshTools \
+-    -lsampling
++    -lfileFormats \
++    -lsurfMesh \
++    -Wl,--no-whole-archive
+diff --git a/applications/utilities/mesh/generation/blockMesh/Make/options b/applications/utilities/mesh/generation/blockMesh/Make/options
+index b0674ad5f8..4312d4903f 100644
+--- a/applications/utilities/mesh/generation/blockMesh/Make/options
++++ b/applications/utilities/mesh/generation/blockMesh/Make/options
+@@ -2,10 +2,17 @@ EXE_INC = \
+     -I$(LIB_SRC)/mesh/blockMesh/lnInclude \
+     -I$(LIB_SRC)/fileFormats/lnInclude \
+     -I$(LIB_SRC)/meshTools/lnInclude \
+-    -I$(LIB_SRC)/dynamicMesh/lnInclude
++    -I$(LIB_SRC)/dynamicMesh/lnInclude \
++    -I$(LIB_SRC)/finiteVolume/lnInclude \
++    -I$(LIB_SRC)/mesh/extrudeModel/lnInclude
+ 
+ EXE_LIBS = \
++    -Wl,--whole-archive \
+     -lblockMesh \
+     -lfileFormats \
++    -lsurfMesh \
+     -lmeshTools \
+-    -ldynamicMesh
++    -ldynamicMesh \
++    -lfiniteVolume \
++    -lextrudeModel \
++    -Wl,--no-whole-archive
+diff --git a/src/OSspecific/POSIX/Make/files b/src/OSspecific/POSIX/Make/files
+index ed5d69dc73..77a8e8bf59 100644
+--- a/src/OSspecific/POSIX/Make/files
++++ b/src/OSspecific/POSIX/Make/files
+@@ -22,7 +22,7 @@ fileStat/fileStat.C
+  */
+ fileMonitor/fileMonitor.C
+ 
+-#ifdef __sun__
++#if defined(__sun__) || defined(FOAM_WASM)
+ printStack/dummyPrintStack.C
+ #else
+ printStack/printStack.C
+diff --git a/src/OSspecific/POSIX/POSIX.C b/src/OSspecific/POSIX/POSIX.C
+index a346b47b96..3d7531983d 100644
+--- a/src/OSspecific/POSIX/POSIX.C
++++ b/src/OSspecific/POSIX/POSIX.C
+@@ -52,6 +52,7 @@ Description
+ #include <cstdio>
+ #include <unistd.h>
+ #include <dirent.h>
++#ifndef FOAM_WASM
+ #include <pwd.h>
+ #include <errno.h>
+ #include <sys/types.h>
+@@ -61,7 +62,9 @@ Description
+ #include <netdb.h>
+ #include <netinet/in.h>
+ #include <dlfcn.h>
++#endif // !FOAM_WASM
+ 
++#ifndef FOAM_WASM
+ #ifdef __APPLE__
+     #define EXT_SO  "dylib"
+     #include <mach-o/dyld.h>
+@@ -75,6 +78,9 @@ Description
+ 
+     #include <link.h>
+ #endif
++#else // FOAM_WASM
++    #define EXT_SO  "wasm"
++#endif // !FOAM_WASM
+ 
+ 
+ // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
+@@ -89,6 +95,7 @@ static bool cwdPreference_(Foam::debug::optimisationSwitch("cwd", 0));
+ 
+ // * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
+ 
++#ifndef FOAM_WASM
+ // After a fork in system(), before the exec() do the following
+ // - close stdin when executing in background (daemon-like)
+ // - redirect stdout to stderr when infoDetailLevel == 0
+@@ -107,8 +114,10 @@ static inline void redirects(const bool bg)
+         (void) ::dup2(STDERR_FILENO, STDOUT_FILENO);
+     }
+ }
++#endif // !FOAM_WASM
+ 
+ 
++#ifndef FOAM_WASM
+ // Library loading is normally simply via dlopen(),
+ // but SIP (System Integrity Protection) on Apple will generally
+ // clear out the DYLD_LIBRARY_PATH set from shell scripts.
+@@ -155,6 +164,7 @@ static inline void* loadLibrary(const Foam::fileName& libName)
+     // Regular loading
+     return ::dlopen(libName.c_str(), ldflags);
+ }
++#endif // !FOAM_WASM
+ 
+ 
+ // * * * * * * * * * * * * * * * * Local Classes * * * * * * * * * * * * * * //
+@@ -359,6 +369,7 @@ Foam::string Foam::hostName()
+ }
+ 
+ 
++#ifndef FOAM_WASM
+ // DEPRECATED (2022-01)
+ Foam::string Foam::hostName(bool full)
+ {
+@@ -400,8 +411,13 @@ Foam::string Foam::domainName()
+ 
+     return string();
+ }
++#else // FOAM_WASM
++Foam::string Foam::hostName(bool) { return Foam::hostName(); }
++Foam::string Foam::domainName() { return string(); }
++#endif // !FOAM_WASM
+ 
+ 
++#ifndef FOAM_WASM
+ Foam::string Foam::userName()
+ {
+     struct passwd* pw = ::getpwuid(::getuid());
+@@ -454,6 +470,12 @@ Foam::fileName Foam::home(const std::string& userName)
+ 
+     return fileName();
+ }
++#else // FOAM_WASM
++Foam::string Foam::userName() { return "wasm-user"; }
++bool Foam::isAdministrator() { return false; }
++Foam::fileName Foam::home() { return fileName("/home"); }
++Foam::fileName Foam::home(const std::string&) { return fileName("/home"); }
++#endif // !FOAM_WASM
+ 
+ 
+ namespace Foam
+@@ -1539,6 +1561,7 @@ void Foam::fdClose(const int fd)
+ }
+ 
+ 
++#ifndef FOAM_WASM
+ bool Foam::ping
+ (
+     const std::string& destName,
+@@ -1797,8 +1820,16 @@ int Foam::system(const Foam::UList<Foam::string>& command, const bool bg)
+     const CStringList cmd(command);
+     return Foam::system(cmd, bg);
+ }
++#else // FOAM_WASM
++bool Foam::ping(const std::string&, const label, const label) { return false; }
++bool Foam::ping(const std::string&, const label) { return false; }
++int Foam::system(const std::string&, const bool) { return -1; }
++int Foam::system(const CStringList&, const bool) { return -1; }
++int Foam::system(const Foam::UList<Foam::string>&, const bool) { return -1; }
++#endif // !FOAM_WASM
+ 
+ 
++#ifndef FOAM_WASM
+ void* Foam::dlOpen(const fileName& libName, const bool check)
+ {
+     if (POSIX::debug)
+@@ -1966,9 +1997,6 @@ static int collectLibsCallback
+     ptr->append(info->dlpi_name);
+     return 0;
+ }
+-#endif
+-
+-
+ Foam::fileNameList Foam::dlLoaded()
+ {
+     DynamicList<fileName> libs;
+@@ -1989,6 +2017,16 @@ Foam::fileNameList Foam::dlLoaded()
+     }
+     return libs;
+ }
++#endif // !__APPLE__
++
++#else // FOAM_WASM
++void* Foam::dlOpen(const fileName&, const bool) { return nullptr; }
++void* Foam::dlOpen(const fileName&, std::string& e) { e = "no dlopen in WASM"; return nullptr; }
++Foam::label Foam::dlOpen(std::initializer_list<fileName>, const bool) { return 0; }
++bool Foam::dlClose(void*) { return false; }
++void* Foam::dlSymFind(void*, const std::string&, bool) { return nullptr; }
++Foam::fileNameList Foam::dlLoaded() { return fileNameList(); }
++#endif // !FOAM_WASM
+ 
+ 
+ // ************************************************************************* //
+diff --git a/src/OpenFOAM/primitives/Scalar/scalar/scalar.cxx b/src/OpenFOAM/primitives/Scalar/scalar/scalar.cxx
+index 7f253f1cff..7821544bf9 100644
+--- a/src/OpenFOAM/primitives/Scalar/scalar/scalar.cxx
++++ b/src/OpenFOAM/primitives/Scalar/scalar/scalar.cxx
+@@ -113,7 +113,7 @@ void Foam::readRawScalar(Istream& is, scalar* data, size_t nElem)
+             // Cannot recover from this
+             FatalIOErrorInFunction(is)
+                 << "Currently no code to read float" << (8*is.scalarByteSize())
+-                << " as float" << (8*sizeof(scalar)) << nl
++                << " as float" << int(8*sizeof(scalar)) << nl
+                 << abort(FatalIOError);
+         }
+     }
+diff --git a/src/OpenFOAM/primitives/ints/int64/int64IO.C b/src/OpenFOAM/primitives/ints/int64/int64IO.C
+index cd61e60188..f56b82f1c3 100644
+--- a/src/OpenFOAM/primitives/ints/int64/int64IO.C
++++ b/src/OpenFOAM/primitives/ints/int64/int64IO.C
+@@ -182,7 +182,7 @@ Foam::Ostream& Foam::operator<<(Ostream& os, const int64_t val)
+ }
+ 
+ 
+-#ifdef __APPLE__  // (__SIZEOF_LONG__ == 8)
++#ifdef __APPLE__
+ Foam::Istream& Foam::operator>>(Istream& is, long& val)
+ {
+     int64_t ival;
+diff --git a/src/OpenFOAM/primitives/ints/label/label.C b/src/OpenFOAM/primitives/ints/label/label.C
+index 1c360258b0..a5e3e33d6f 100644
+--- a/src/OpenFOAM/primitives/ints/label/label.C
++++ b/src/OpenFOAM/primitives/ints/label/label.C
+@@ -102,7 +102,7 @@ void Foam::readRawLabel(Istream& is, label* data, size_t nElem)
+             // Cannot recover from this
+             FatalIOErrorInFunction(is)
+                 << "Currently no code to read int" << (8*is.labelByteSize())
+-                << " as int" << (8*sizeof(label)) << nl
++                << " as int" << int(8*sizeof(label)) << nl
+                 << abort(FatalIOError);
+         }
+     }
+diff --git a/src/OpenFOAM/primitives/ints/uint64/uint64.H b/src/OpenFOAM/primitives/ints/uint64/uint64.H
+index 66e8bda320..921d4bbf14 100644
+--- a/src/OpenFOAM/primitives/ints/uint64/uint64.H
++++ b/src/OpenFOAM/primitives/ints/uint64/uint64.H
+@@ -120,7 +120,7 @@ Ostream& operator<<(Ostream& os, const uint64_t val);
+ // On Darwin:
+ // unsigned long is not unambiguously (uint32_t | uint64_t)
+ // - explicitly resolve for output
+-#ifdef __APPLE__
++#if defined(__APPLE__) || defined(FOAM_WASM)
+     Ostream& operator<<(Ostream& os, const unsigned long val);
+ #endif
+ 
+@@ -192,8 +192,8 @@ public:
+ };
+ 
+ 
+-#ifdef __APPLE__
+-//- On Darwin: unsigned long is not unambiguously (uint64_t)
++#if defined(__APPLE__) || defined(FOAM_WASM)
++//- On Darwin/WASM: unsigned long is not unambiguously (uint64_t)
+ template<> class pTraits<unsigned long> : pTraits<uint64_t> {};
+ #endif
+ 
+diff --git a/src/OpenFOAM/primitives/ints/uint64/uint64IO.C b/src/OpenFOAM/primitives/ints/uint64/uint64IO.C
+index a027d4f284..018561b234 100644
+--- a/src/OpenFOAM/primitives/ints/uint64/uint64IO.C
++++ b/src/OpenFOAM/primitives/ints/uint64/uint64IO.C
+@@ -154,7 +154,7 @@ Foam::Ostream& Foam::operator<<(Ostream& os, const uint64_t val)
+ }
+ 
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) || defined(FOAM_WASM)
+ Foam::Ostream& Foam::operator<<(Ostream& os, const unsigned long val)
+ {
+     os << uint64_t(val);
+diff --git a/src/fvOptions/cellSetOption/cellSetOption.C b/src/fvOptions/cellSetOption/cellSetOption.C
+index 8b484a7775..26ef177637 100644
+--- a/src/fvOptions/cellSetOption/cellSetOption.C
++++ b/src/fvOptions/cellSetOption/cellSetOption.C
+@@ -30,7 +30,9 @@ License
+ #include "cellSet.H"
+ #include "cellBitSet.H"
+ #include "volFields.H"
++#ifndef FOAM_WASM
+ #include "cellCellStencilObject.H"
++#endif
+ 
+ // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
+ 
+@@ -310,6 +312,7 @@ void Foam::fv::cellSetOption::setCellSelection()
+             }
+             break;
+         }
++#ifndef FOAM_WASM
+         case smCellType:
+         {
+             labelHashSet selectedCells;
+@@ -325,6 +328,7 @@ void Foam::fv::cellSetOption::setCellSelection()
+             }
+             break;
+         }
++#endif
+         default:
+         {
+             FatalErrorInFunction
+diff --git a/src/fvOptions/constraints/derived/velocityDampingConstraint/velocityDampingConstraint.C b/src/fvOptions/constraints/derived/velocityDampingConstraint/velocityDampingConstraint.C
+index 03a7793d5b..4bd7705ebb 100644
+--- a/src/fvOptions/constraints/derived/velocityDampingConstraint/velocityDampingConstraint.C
++++ b/src/fvOptions/constraints/derived/velocityDampingConstraint/velocityDampingConstraint.C
+@@ -30,7 +30,9 @@ License
+ #include "addToRunTimeSelectionTable.H"
+ #include "fvMatrix.H"
+ #include "volFields.H"
++#ifndef FOAM_WASM
+ #include "cellCellStencilObject.H"
++#endif
+ 
+ // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
+ 
