@@ -54,7 +54,9 @@ cd dist
 uv run python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080/test.html` in your browser.
+Open `http://localhost:8080/` in your browser.
+
+A live demo is available at [foamscience.github.io/openfoam-wasm](https://foamscience.github.io/openfoam-wasm/).
 
 ## Build options
 
